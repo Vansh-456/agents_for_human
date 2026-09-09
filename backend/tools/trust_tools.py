@@ -1,5 +1,5 @@
 from strands import tool
-from services.event_service import state_db
+from backend.services.event_service import state_db
 
 @tool
 def get_trust_score(participant_id: str) -> float:

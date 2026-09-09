@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from services.event_service import state_db
-from agents.supervisor import trigger_pipeline
+from backend.services.event_service import state_db
+from backend.agents.supervisor import trigger_pipeline
 
 router = APIRouter()
 

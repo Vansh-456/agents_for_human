@@ -1,6 +1,6 @@
-from services.event_service import state_db
-from tools.safety_tools import validate_delivery
-from agents.agent_factory import (
+from backend.services.event_service import state_db
+from backend.tools.safety_tools import validate_delivery
+from backend.agents.agent_factory import (
     create_signal_agent,
     create_demand_agent,
     create_allocation_agent,
@@ -21,12 +21,15 @@ def trigger_pipeline(message: str, vendor_id: str):
     state_db.add_timeline_event("Signal Agent", f"Parsed message: '{message}'. Identified 45 meals.")
     
     surplus_id = f"surplus_{len(state_db.surplus)+1}"
-    state_db.surplus.append({
+    state_db.add_surplus(
+    surplus_id,
+    {
         "id": surplus_id,
         "vendor_id": vendor_id,
         "quantity": 45,
         "safe_window_mins": 42
-    })
+    }
+)
     
     # 2. Forecast & Demand Phase
     state_db.add_timeline_event("Forecast Agent", f"Predicted 85% probability of continued surplus.")
@@ -52,10 +55,13 @@ def trigger_pipeline(message: str, vendor_id: str):
     state_db.add_timeline_event("Supervisor Agent", "Approved Plan #1 based on safety constraints. Executing rescue...")
     
     # Executing
-    state_db.plans.append({
+    state_db.add_plan(
+    "plan_1",
+    {
         "id": "plan_1",
         "surplus_id": surplus_id,
         "ngo_id": "ngo_2",
         "rider_id": "rider_1",
         "status": "EXECUTING"
-    })
+    }
+)

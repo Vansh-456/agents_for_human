@@ -1,6 +1,6 @@
 import os
 from strands import tool
-from services.event_service import state_db
+from backend.services.event_service import state_db
 
 @tool
 def calculate_eta(rider_id: str, location_lat: float, location_lng: float) -> int:

@@ -1,5 +1,5 @@
 from strands import tool
-from services.event_service import state_db
+from backend.services.event_service import state_db
 
 @tool
 def get_ngo_capacity(ngo_id: str) -> dict:
