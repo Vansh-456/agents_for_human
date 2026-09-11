@@ -57,9 +57,18 @@ class StateDB:
             }
         }
 
-        self.surplus = []
-        self.plans = []
-        self.timeline = []
+        self.surplus = self.repository.get_all_surplus()
+        self.plans = self.repository.get_all_allocations()
+
+        self.timeline = [
+            {
+                "timestamp": event["payload"].get("timestamp"),
+                "agent": event["actor"],
+                "message": event["payload"].get("message")
+            }
+            for event in self.repository.get_events()
+            if event["event_type"] == "TIMELINE_EVENT"
+        ]
 
         self._persist_initial_state()
 
