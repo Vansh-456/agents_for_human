@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from services.event_service import state_db
+from backend.services.event_service import state_db
 
 router = APIRouter()
 
