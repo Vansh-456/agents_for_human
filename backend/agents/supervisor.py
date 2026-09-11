@@ -50,7 +50,18 @@ def trigger_pipeline(message: str, vendor_id: str):
         state_db.add_timeline_event("Safety Agent", f"[AnnaGuard] Plan #1 validated successfully. ETA 15m <= 42m.")
     if safety_2 == "REJECT":
         state_db.add_timeline_event("Safety Agent", f"[AnnaGuard] Plan #2 REJECTED. ETA 65m exceeds safe window 42m.")
-        
+
+        state_db.repository.record_event(
+            event_type="SAFETY_BLOCKED",
+            actor="Safety Agent",
+            payload={
+                "plan_id": "plan_2",
+                "eta_mins": 65,
+                "safe_window_mins": 42,
+                "reason": "ETA exceeds safe handling window"
+            }
+        )
+            
     # 6. Supervisor Phase
     state_db.add_timeline_event("Supervisor Agent", "Approved Plan #1 based on safety constraints. Executing rescue...")
     
