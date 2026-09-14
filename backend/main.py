@@ -8,7 +8,7 @@ app = FastAPI(title="AnnaSetu API", description="Autonomous food-rescue coordina
 # Configure CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin for origin in __import__("os").getenv("CORS_ORIGINS", "http://localhost:5173").split(",")],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
