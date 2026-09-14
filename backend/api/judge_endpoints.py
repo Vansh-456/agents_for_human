@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request
 from backend.services.event_service import state_db
 from backend.api.simulation import trigger_scenario
-from backend.api.events import whatsapp_webhook
+from backend.api.events import receive_message, MessagePayload
 
 router = APIRouter()
 
@@ -49,6 +49,6 @@ def get_metrics():
     }
 
 @router.post("/webhooks/whatsapp")
-async def alias_whatsapp_webhook(request: Request):
+async def alias_whatsapp_webhook(payload: MessagePayload):
     """Alias for the WhatsApp webhook endpoint required by the spec."""
-    return await whatsapp_webhook(request)
+    return receive_message(payload)
