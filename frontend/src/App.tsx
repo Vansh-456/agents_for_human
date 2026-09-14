@@ -12,8 +12,8 @@ interface Plan {
   surplus_id: string;
   ngo_id: string;
   rider_id: string;
-  quantity: int;
-  eta_mins: int;
+  quantity: number;
+  eta_mins: number;
   safety_status: string;
   status: string;
   safety?: { safety_margin_mins?: number; reasons?: string[] };
