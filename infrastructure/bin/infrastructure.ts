@@ -1,5 +1,11 @@
 #!/usr/bin/env node
-import * as cdk from 'aws-cdk-lib/core';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load the root .env file
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
+import * as cdk from 'aws-cdk-lib';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
 
 const app = new cdk.App();

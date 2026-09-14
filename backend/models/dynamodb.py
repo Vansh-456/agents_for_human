@@ -1,6 +1,8 @@
 import os
 
 import boto3
+import json
+from decimal import Decimal
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,13 +23,14 @@ class DynamoDBStore:
     """
 
     def __init__(self):
-        self.mock_store = {}
-
+        self.table_name = DYNAMODB_TABLE
         if MOCK_AWS:
+            self.dynamodb = None
             self.table = None
+            self.mock_store = {}
         else:
-            dynamodb = boto3.resource("dynamodb")
-            self.table = dynamodb.Table(DYNAMODB_TABLE)
+            self.dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+            self.table = self.dynamodb.Table(self.table_name)
 
     def get_item(self, pk: str, sk: str = None):
         if MOCK_AWS:
@@ -54,7 +57,11 @@ class DynamoDBStore:
             self.mock_store[key] = item
             return item
 
-        self.table.put_item(Item=item)
+        if not MOCK_AWS:
+            # DynamoDB requires floats to be cast to Decimal
+            item_str = json.dumps(item)
+            item = json.loads(item_str, parse_float=Decimal)
+            self.table.put_item(Item=item)
         return item
 
     def delete_item(self, pk: str, sk: str = None):

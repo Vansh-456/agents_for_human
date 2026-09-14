@@ -12,13 +12,15 @@
     "@swc/jest": "^0.2.39",
     "@types/jest": "^30",
     "@types/node": "^24.10.1",
-    "jest": "^30",
     "aws-cdk": "2.1139.0",
+    "jest": "^30",
     "tsx": "^4.23.0",
     "typescript": "~7.0.2"
   },
   "dependencies": {
+    "@aws-cdk/aws-apprunner-alpha": "^2.269.0-alpha.0",
     "aws-cdk-lib": "^2.266.0",
-    "constructs": "^10.5.0"
+    "constructs": "^10.5.0",
+    "dotenv": "^17.4.2"
   }
 }

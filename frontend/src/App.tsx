@@ -1,154 +1,242 @@
-import { useEffect, useState } from 'react';
-import { VendorInput } from './components/VendorInput';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import './index.css';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000/api';
+type RecordMap = Record<string, Record<string, any>>;
 
-interface TimelineEvent {
-  timestamp: string;
-  agent: string;
-  message: string;
+// Deeply typed NetworkState matching backend contracts
+interface Plan {
+  id: string;
+  workflow_id: string;
+  surplus_id: string;
+  ngo_id: string;
+  rider_id: string;
+  quantity: int;
+  eta_mins: int;
+  safety_status: string;
+  status: string;
+  safety?: { safety_margin_mins?: number; reasons?: string[] };
 }
 
-interface NetworkState {
-  vendors: any;
-  ngos: any;
-  riders: any;
-  timeline: TimelineEvent[];
+interface Network { 
+  vendors: RecordMap; 
+  ngos: RecordMap; 
+  riders: RecordMap; 
+  surplus: any[]; 
+  plans: Record<string, Plan>; 
+  timeline: any[] 
 }
 
-function App() {
-  const [network, setNetwork] = useState<NetworkState | null>(null);
+const label = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 
-  const fetchNetwork = async () => {
+export default function App() {
+  const [network, setNetwork] = useState<Network | null>(null);
+  const [message, setMessage] = useState('45 vegetarian meals ready, pickup within 42 minutes');
+  const [notice, setNotice] = useState('Connecting to the rescue network…');
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/network`);
-      const data = await res.json();
-      setNetwork(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchNetwork();
-    const interval = setInterval(fetchNetwork, 2000);
-    return () => clearInterval(interval);
+      const response = await fetch(`${API_BASE}/network/`);
+      if (!response.ok) throw new Error('Network unavailable');
+      setNetwork(await response.json());
+      setNotice('Live operational data · updates every 3 seconds');
+    } catch { setNotice('Demo API is unavailable. Start the backend on port 8000.'); }
   }, []);
 
-  const triggerSimulation = async (type: string) => {
+  useEffect(() => { 
+    refresh(); 
+    const timer = window.setInterval(refresh, 3000); 
+    return () => window.clearInterval(timer); 
+  }, [refresh]);
+
+  const runScenario = async (scenario: string) => {
+    setLoading(true); setNotice(`Running ${label(scenario)} through the live workflow…`);
+    try { 
+      const response = await fetch(`${API_BASE}/simulation/trigger/${scenario}`, { method: 'POST' }); 
+      if (!response.ok) throw new Error(); 
+      await refresh(); 
+      setNotice(`${label(scenario)} completed. Inspect the decision ledger below.`); 
+    }
+    catch { setNotice('Scenario could not run. Check the API and retry.'); }
+    finally { setLoading(false); }
+  };
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault(); if (!message.trim()) return;
+    setLoading(true); setNotice('AnnaSetu is validating your report…');
+    try { 
+      const response = await fetch(`${API_BASE}/events/webhook/whatsapp`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ sender_id: 'vendor_1', text: message }) 
+      }); 
+      if (!response.ok) throw new Error(); 
+      await refresh(); 
+      setNotice('Report processed. The decision trail is now visible.'); 
+    }
+    catch { setNotice('Unable to submit. Please retry after checking the API.'); }
+    finally { setLoading(false); }
+  };
+
+  // Convert plans object to array for easier filtering
+  const plans = network?.plans ? Object.values(network.plans) : []; 
+  const delivered = plans.filter((plan) => plan.status === 'DELIVERED').reduce((sum, plan) => sum + plan.quantity, 0);
+  const active = plans.filter((plan) => ['PROPOSED', 'SAFETY_PASS', 'RESERVED', 'ASSIGNED', 'ACCEPTED', 'PICKED_UP', 'IN_TRANSIT'].includes(plan.status));
+  const reviewPlans = plans.filter((plan) => ['HUMAN_REVIEW', 'SAFETY_BLOCKED'].includes(plan.status));
+  
+  const handleOperatorAction = async (planId: string, action: string) => {
+    setLoading(true);
     try {
-      await fetch(`${API_BASE}/simulation/trigger/${type}`, { method: 'POST' });
-      fetchNetwork();
-    } catch (err) {
-      console.error(err);
+      const response = await fetch(`${API_BASE}/plans/${planId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: action })
+      });
+      if (!response.ok) throw new Error();
+      await refresh();
+    } catch {
+      setNotice('Failed to submit operator decision.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <div className="app-container">
-      {/* Left Sidebar - Controls & Metrics */}
-      <div className="glass-panel" style={{overflowY: 'auto'}}>
-        <h1>AnnaSetu</h1>
-        <div className="subtitle">Autonomous Food Rescue Mesh</div>
-
-        <div className="section-title">Global State</div>
-        <div className="metric-card">
-          <div className="section-title" style={{marginBottom: 0}}>Meals Rescued Today</div>
-          <div className="metric-value" style={{color: 'var(--success)'}}>327</div>
-        </div>
-        <div className="metric-card">
-          <div className="section-title" style={{marginBottom: 0}}>At Risk (Approaching Expiry)</div>
-          <div className="metric-value" style={{color: 'var(--warning)'}}>45</div>
-        </div>
-
-        <div className="section-title" style={{marginTop: '2rem'}}>Simulation Controls</div>
-        <button className="btn" onClick={() => triggerSimulation('normal')}>
-          🚀 Start: Normal Rescue
-        </button>
-        <button className="btn btn-warning" onClick={() => triggerSimulation('rider_failure')}>
-          ⚠️ Start: Rider Cancellation
-        </button>
-        <button className="btn btn-danger" onClick={() => triggerSimulation('safety_block')}>
-          🛑 Start: Safety Conflict
-        </button>
+  return <main>
+    <header className="topbar">
+      <div>
+        <p className="eyebrow">AUTONOMOUS FOOD-RESCUE NETWORK</p>
+        <h1>Anna<span>Setu</span></h1>
       </div>
+      <div className="live"><i /> {notice}</div>
+    </header>
 
-      {/* Main View - Network Status */}
-      <div className="glass-panel" style={{overflowY: 'hidden'}}>
-        <VendorInput onSuccess={fetchNetwork} />
-        
-        <div className="section-title" style={{marginTop: '2rem'}}>Live Network Map</div>
-        <div className="network-view">
-          <div>
-            <h3 style={{marginBottom: '1rem', fontSize: '1rem'}}>Vendors (Surplus)</h3>
-            <div className="network-grid">
-              {network?.vendors && Object.entries(network.vendors).map(([id, v]: any) => (
-                <div key={id} className="node-card">
-                  <div className="node-icon" style={{background: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6'}}>🏪</div>
-                  <div className="node-info">
-                    <span className="node-name">{v.name}</span>
-                    <span className="node-stat">Trust: {v.trust_score * 100}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <h3 style={{marginBottom: '1rem', fontSize: '1rem'}}>NGOs (Capacity)</h3>
-            <div className="network-grid">
-              {network?.ngos && Object.entries(network.ngos).map(([id, n]: any) => (
-                <div key={id} className="node-card">
-                  <div className="node-icon" style={{background: 'rgba(16, 185, 129, 0.2)', color: '#10b981'}}>❤️</div>
-                  <div className="node-info">
-                    <span className="node-name">{n.name}</span>
-                    <span className="node-stat">Slots: {n.current_capacity}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h3 style={{marginBottom: '1rem', fontSize: '1rem'}}>Riders (Logistics)</h3>
-            <div className="network-grid">
-              {network?.riders && Object.entries(network.riders).map(([id, r]: any) => (
-                <div key={id} className="node-card" style={{opacity: r.available ? 1 : 0.5}}>
-                  <div className="node-icon" style={{background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b'}}>🛵</div>
-                  <div className="node-info">
-                    <span className="node-name">{r.name}</span>
-                    <span className="node-stat">{r.available ? 'Available' : 'Busy'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+    <section className="hero">
+      <div>
+        <p className="eyebrow">GOOD NEIGHBOR AGENT · DELHI NCR PILOT</p>
+        <h2>Turn surplus into <em>safe, delivered meals.</em></h2>
+        <p>AnnaSetu coordinates donors, community kitchens and riders in the background—then only asks people when a genuine decision needs them.</p>
       </div>
+      <div className="guard">
+        <span>ANNA<span>GUARD</span></span>
+        <strong>{active[0]?.safety_status ?? (reviewPlans[0]?.safety_status ?? 'READY')}</strong>
+        <small>Deterministic safety control plane</small>
+      </div>
+    </section>
 
-      {/* Right Sidebar - Agent Activity */}
-      <div className="glass-panel">
-        <div className="section-title">Live Agent Activity</div>
-        <div className="timeline">
-          {network?.timeline?.length === 0 && (
-            <div style={{color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem'}}>
-              Waiting for events...
-            </div>
-          )}
-          {network?.timeline?.map((event, i) => (
-            <div className="timeline-item" key={i}>
-              <div className="timeline-time">{event.timestamp}</div>
-              <div className="timeline-content" data-agent={event.agent}>
-                <div className="timeline-agent">{event.agent}</div>
-                <div className="timeline-message">{event.message}</div>
+    <section className="metrics">
+      <Metric value={String(delivered)} label="Meals delivered" tone="green"/>
+      <Metric value={String(active.length)} label="Active rescues" tone="blue"/>
+      <Metric value={String((network?.riders && Object.values(network.riders).filter((r: any) => r.available).length) ?? 0)} label="Riders ready"/>
+      <Metric value={String(plans.filter((p) => p.status === 'FAILED').length)} label="Auto-recoveries" tone="amber"/>
+    </section>
+
+    {reviewPlans.length > 0 && (
+      <section className="panel" style={{ marginBottom: 24, border: '1px solid var(--accent-warning)', background: 'rgba(245,158,11,0.05)' }}>
+        <div className="panel-head">
+          <div><p className="eyebrow" style={{ color: 'var(--accent-warning)' }}>HUMAN INBOX</p><h3>Review Required</h3></div>
+          <span className="tag" style={{ color: 'var(--accent-warning)', borderColor: 'var(--accent-warning)' }}>ACTION NEEDED</span>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          {reviewPlans.map(plan => (
+            <div key={plan.id} style={{ padding: 16, background: 'rgba(0,0,0,0.3)', borderRadius: 12, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <b style={{ display: 'block', marginBottom: 4 }}>Plan {plan.id} - {plan.status}</b>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  {plan.quantity} meals • ETA {plan.eta_mins} mins • {plan.safety?.reasons?.join(', ') || 'Manual review triggered'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button disabled={loading} onClick={() => handleOperatorAction(plan.id, 'CANCELLED')} style={{ padding: '8px 16px', background: 'var(--bg-panel)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', margin: 0, width: 'auto' }}>Reject</button>
+                <button disabled={loading} onClick={() => handleOperatorAction(plan.id, 'ASSIGNED')} style={{ padding: '8px 16px', background: 'var(--accent-warning)', color: '#000', margin: 0, width: 'auto' }}>Force Approve</button>
               </div>
             </div>
-          )).reverse()}
+          ))}
         </div>
-      </div>
-    </div>
-  );
+      </section>
+    )}
+
+    <section className="grid">
+      <section className="panel report">
+        <div className="panel-head">
+          <div><p className="eyebrow">REPORT SURPLUS</p><h3>One message starts a rescue</h3></div>
+          <span className="tag">STRANDS + BEDROCK</span>
+        </div>
+        <form onSubmit={submit}>
+          <label htmlFor="message">Describe food, quantity, and pickup deadline</label>
+          <textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} aria-label="Surplus report"/>
+          <button disabled={loading}>{loading ? 'Processing…' : 'Start safe rescue'} <b>→</b></button>
+        </form>
+        <div className="scenarios">
+          <p className="eyebrow">GUIDED DEMOS</p>
+          {[['normal','Normal rescue'],['rider_failure','Rider failure → re-plan'],['safety_block','Safety block'],['clarification','Missing details']].map(([key, text]) => 
+            <button key={key} className="scenario" disabled={loading} onClick={() => runScenario(key)}>
+              {text}<span>↗</span>
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="panel route">
+        <div className="panel-head">
+          <div><p className="eyebrow">LIVE NETWORK</p><h3>Safe routes, visible decisions</h3></div>
+          <span className="tag green">{active.length ? 'IN MOTION' : 'STANDING BY'}</span>
+        </div>
+        <div className="route-canvas">
+          <div className="route-line"/>
+          <Node icon="✦" title="Donor" text={network?.vendors?.vendor_1?.name ?? 'Restaurant A'} cls="donor"/>
+          <Node icon="◉" title="Rider" text={active[0] ? network?.riders?.[active[0].rider_id]?.name ?? active[0].rider_id : 'Awaiting assignment'} cls="rider"/>
+          <Node icon="♥" title="Recipient" text={active[0] ? network?.ngos?.[active[0].ngo_id]?.name ?? active[0].ngo_id : 'Capacity monitored'} cls="ngo"/>
+        </div>
+        {active[0] ? 
+          <div className="plan-detail">
+            <span><b>{active[0].quantity}</b> meals</span>
+            <span><b>{active[0].eta_mins} min</b> ETA</span>
+            <span><b>{active[0].safety?.safety_margin_mins ?? '—'} min</b> margin</span>
+          </div> 
+        : reviewPlans[0] ? 
+          <p className="empty">Route is blocked pending human operator review.</p>
+        : <p className="empty">Run a scenario to see an evidence-backed route.</p>}
+      </section>
+
+      <section className="panel ledger">
+        <div className="panel-head">
+          <div><p className="eyebrow">DECISION LEDGER</p><h3>Every action is explainable</h3></div>
+          <span className="tag">AUDITABLE</span>
+        </div>
+        <div className="timeline">
+          {(network?.timeline ?? []).slice().reverse().slice(0, 10).map((event, i) => 
+            <article key={`${event.timestamp}-${i}`}>
+              <time>{new Date(event.timestamp).toLocaleTimeString()}</time>
+              <div>
+                <b>{event.agent}</b>
+                <p>{event.message}</p>
+              </div>
+            </article>
+          )}
+          {!network?.timeline?.length && <p className="empty">Events will appear here after a workflow starts.</p>}
+        </div>
+      </section>
+    </section>
+
+    <footer>Built with Strands Agents SDK · Amazon Bedrock · deterministic AnnaGuard policies · all operational metrics are derived from workflow records.</footer>
+  </main>;
 }
 
-export default App;
+function Metric({ value, label, tone = '' }: { value: string; label: string; tone?: string }) { 
+  return <article className={`metric ${tone}`}>
+    <strong>{value}</strong>
+    <span>{label}</span>
+  </article>; 
+}
+
+function Node({ icon, title, text, cls }: { icon: string; title: string; text: string; cls: string }) { 
+  return <div className={`map-node ${cls}`}>
+    <i>{icon}</i>
+    <div>
+      <small>{title}</small>
+      <b>{text}</b>
+    </div>
+  </div>; 
+}

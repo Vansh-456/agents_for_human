@@ -60,6 +60,18 @@ class DynamoDBRepository(Repository):
 
         return db_store.put_item(item)
 
+    def get_all_vendors(self):
+        items = db_store.scan_items()
+        return {item["id"]: item for item in items if item.get("entity_type") == "VENDOR"}
+
+    def get_all_ngos(self):
+        items = db_store.scan_items()
+        return {item["id"]: item for item in items if item.get("entity_type") == "NGO"}
+
+    def get_all_riders(self):
+        items = db_store.scan_items()
+        return {item["id"]: item for item in items if item.get("entity_type") == "RIDER"}
+
     # ---------- Surplus ----------
 
     def save_surplus(self, surplus_id: str, data: dict):
