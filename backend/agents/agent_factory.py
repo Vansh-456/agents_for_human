@@ -12,10 +12,11 @@ from backend.tools.safety_tools import validate_delivery
 
 MOCK_AWS = os.getenv("MOCK_AWS", "true").lower() == "true"
 BEDROCK_MODEL_ID = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+BEDROCK_REGION = os.getenv("BEDROCK_REGION", "us-west-2")
 
 def get_bedrock_model():
     if not MOCK_AWS:
-        return BedrockModel(model_id=BEDROCK_MODEL_ID)
+        return BedrockModel(model_id=BEDROCK_MODEL_ID, region_name=BEDROCK_REGION)
     return None
 
 def create_allocation_agent(tools=None):
