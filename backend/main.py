@@ -1,5 +1,6 @@
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api import events, network, simulation
 
@@ -24,6 +25,14 @@ app.include_router(judge_endpoints.router, prefix="/api", tags=["Judge Spec Endp
 @app.get("/health")
 def health_check():
     return {"status": "ok", "mode": __import__("os").getenv("MOCK_AWS", "true")}
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {repr(exc)}"},
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
