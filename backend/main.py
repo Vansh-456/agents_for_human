@@ -18,6 +18,9 @@ app.include_router(events.router, prefix="/api/events", tags=["Events"])
 app.include_router(network.router, prefix="/api/network", tags=["Network"])
 app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
 
+from backend.api import judge_endpoints
+app.include_router(judge_endpoints.router, prefix="/api", tags=["Judge Spec Endpoints"])
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "mode": __import__("os").getenv("MOCK_AWS", "true")}

@@ -9,7 +9,6 @@ RUN pip install --no-cache-dir -r requirements.txt boto3
 COPY backend /app/backend
 
 ENV PYTHONPATH=/app
-ENV MOCK_AWS=false
 
 EXPOSE 8000
 

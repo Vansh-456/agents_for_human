@@ -53,6 +53,61 @@ class StateDB:
         if not vendors:
             self.repository.save_vendor("vendor_1", {"name": "Restaurant A", "location": {"lat": 28.61, "lng": 77.23}, "trust_score": 0.95})
             self.repository.save_vendor("vendor_2", {"name": "Canteen B", "location": {"lat": 28.62, "lng": 77.21}, "trust_score": 0.88})
+from datetime import datetime
+
+from backend.repositories.dynamodb_repository import DynamoDBRepository
+
+
+class StateDB:
+    """
+    Compatibility layer for the existing application.
+
+    The existing API/agent code can continue using StateDB while
+    persistence is handled by the repository layer.
+    """
+
+    def __init__(self, repository=None):
+        self.repository = repository or DynamoDBRepository()
+        self._persist_initial_state()
+
+    @property
+    def vendors(self):
+        return self.repository.get_all_vendors()
+
+    @property
+    def ngos(self):
+        return self.repository.get_all_ngos()
+
+    @property
+    def riders(self):
+        return self.repository.get_all_riders()
+
+    @property
+    def surplus(self):
+        return self.repository.get_all_surplus()
+
+    @property
+    def plans(self):
+        return self.repository.get_all_allocations()
+
+    @property
+    def timeline(self):
+        return [
+            {
+                "timestamp": event["payload"].get("timestamp"),
+                "agent": event["actor"],
+                "message": event["payload"].get("message")
+            }
+            for event in self.repository.get_events()
+            if event["event_type"] == "TIMELINE_EVENT"
+        ]
+
+    def _persist_initial_state(self):
+        """Persist demo participants into the repository if they don't exist."""
+        vendors = self.repository.get_all_vendors()
+        if not vendors:
+            self.repository.save_vendor("vendor_1", {"name": "Restaurant A", "location": {"lat": 28.61, "lng": 77.23}, "trust_score": 0.95})
+            self.repository.save_vendor("vendor_2", {"name": "Canteen B", "location": {"lat": 28.62, "lng": 77.21}, "trust_score": 0.88})
 
         ngos = self.repository.get_all_ngos()
         if not ngos:
@@ -64,11 +119,37 @@ class StateDB:
             self.repository.save_rider("rider_1", {"name": "Rider John", "location": {"lat": 28.615, "lng": 77.225}, "available": True})
             self.repository.save_rider("rider_2", {"name": "Rider Sarah", "location": {"lat": 28.605, "lng": 77.245}, "available": True})
 
+        plans = self.repository.get_all_allocations()
+        if not plans:
+            self.repository.save_allocation("plan_hist_1", {
+                "id": "plan_hist_1",
+                "workflow_id": "wf_hist_1",
+                "surplus_id": "surplus_hist_1",
+                "ngo_id": "ngo_1",
+                "rider_id": "rider_1",
+                "quantity": 250,
+                "eta_mins": 15,
+                "safety_status": "PASS",
+                "status": "DELIVERED"
+            })
+            self.repository.save_allocation("plan_hist_2", {
+                "id": "plan_hist_2",
+                "workflow_id": "wf_hist_2",
+                "surplus_id": "surplus_hist_2",
+                "ngo_id": "ngo_2",
+                "rider_id": "rider_2",
+                "quantity": 77,
+                "eta_mins": 12,
+                "safety_status": "PASS",
+                "status": "DELIVERED"
+            })
+            self.repository.record_event(
+                event_type="TIMELINE_EVENT",
+                actor="System",
+                payload={"message": "System booted. Restored 327 historically delivered meals.", "timestamp": datetime.now().strftime("%H:%M:%S")}
+            )
+
     def add_timeline_event(self, agent: str, message: str, **context):
-        """
-        Preserve the existing timeline API while also recording
-        the event in persistent storage.
-        """
         timestamp = datetime.now().strftime("%H:%M:%S")
 
         self.repository.record_event(
